@@ -37,6 +37,9 @@ class module_online(GDO_Module):
         Cache.remove('online_users')
 
     def gdo_init_sidebar(self, page: 'GDT_Page'):
+        """
+        Put the who is online into a page bar.
+        """
         cached = Cache.get('online_users', 'all')
         panel = cached or GDT_OnlinePanel()
         if not cached:
