@@ -1,1 +1,3 @@
 module_online = "Online"
+
+online_users = "%s Users Online"
