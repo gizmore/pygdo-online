@@ -1,12 +1,12 @@
 from gdo.base.Trans import t
 from gdo.core.GDO_User import GDO_User
+from gdo.core.GDT_Container import GDT_Container
 from gdo.message.GDT_HTML import GDT_HTML
-from gdo.ui.GDT_Panel import GDT_Panel
 from gdo.user.GDT_ProfileLink import GDT_ProfileLink
 from gdo.user.module_user import module_user
 
 
-class GDT_OnlinePanel(GDT_Panel):
+class GDT_OnlinePanel(GDT_Container):
 
     def __init__(self):
         super().__init__()
