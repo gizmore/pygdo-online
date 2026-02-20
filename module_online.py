@@ -15,6 +15,11 @@ class module_online(GDO_Module):
         super().__init__()
         self._priority = 40
 
+    def gdo_friendencies(self) -> list:
+        return [
+            'maps',
+        ]
+
     def gdo_module_config(self) -> list[GDT]:
         return [
             GDT_PageLocation('online_bar_location').not_null().initial('_bottom_bar'),
