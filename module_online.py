@@ -32,7 +32,7 @@ class module_online(GDO_Module):
         Application.EVENTS.subscribe('user_setting_last_activity_changed', self.on_last_activity_changed)
         Application.EVENTS.subscribe('user_logout', self.on_user_logout)
 
-    async def on_last_activity_changed(self, user: GDO_User, val):
+    def on_last_activity_changed(self, user: GDO_User, val):
         self.on_clear_cache()
 
     async def on_user_logout(self, user: GDO_User):
