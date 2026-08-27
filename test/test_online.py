@@ -21,7 +21,8 @@ class OnlineUsersTest(GDOTestCase):
         web_plug('core.welcome.html').user('gizmore').exec()
         web_plug('core.welcome.html').user('gizmore').exec()
         out = web_plug('core.welcome.html').user('gizmore').exec()
-        self.assertIn('Users Online<a class="gdt-link"', out, 'Online users broken')
+        self.assertIn('Users Online', out, 'Online users broken')
+        self.assertIn('/user.profile.for.gizmore', out, 'Online user profile link missing')
 
 
 if __name__ == '__main__':

@@ -3,3 +3,12 @@
     min-height: 360px;
     height: min(75vh, 720px);
 }
+
+.online-map-avatar {
+    width: 32px;
+    height: 32px;
+    margin-right: 8px;
+    border-radius: 50%;
+    object-fit: cover;
+    vertical-align: middle;
+}

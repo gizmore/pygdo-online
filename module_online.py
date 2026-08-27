@@ -3,6 +3,7 @@ from gdo.base.Cache import Cache
 from gdo.base.GDO_Module import GDO_Module
 from gdo.base.GDT import GDT
 from gdo.base.Util import module_enabled
+from gdo.base.util.href import href
 from gdo.core.GDO_User import GDO_User
 from gdo.core.GDT_Container import GDT_Container
 from gdo.online.GDT_OnlinePanel import GDT_OnlinePanel
@@ -49,33 +50,45 @@ class module_online(GDO_Module):
     def on_clear_cache(self):
         Cache.remove('online_users')
 
+    def online_users(self) -> list[GDO_User]:
+        """Return active primary accounts, not their linked connector identities."""
+        cut = module_user.instance().get_activity_cut_date()
+        return [
+            user for user in GDO_User.table().with_settings_result([('last_activity', '>=', cut)])
+            if user.gdo_val('user_link') is None
+        ]
+
     def online_users_with_positions(self) -> list[dict]:
         """Return the current online users that have a stored map position."""
         from gdo.maps.GDO_UserPos import GDO_UserPos
 
-        cut = module_user.instance().get_activity_cut_date()
-        positions = {
-            position.gdo_val('up_user'): position
-            for position in GDO_UserPos.table().select().exec()
-        }
+        positions = {}
+        for position in GDO_UserPos.table().select().order('up_created DESC').exec():
+            positions.setdefault(position.gdo_val('up_user'), position)
         users = []
-        for user in GDO_User.table().with_settings_result([('last_activity', '>=', cut)]):
+        for user in self.online_users():
             if position := positions.get(user.get_id()):
                 users.append({
                     'name': user.get_name_sid(),
+                    'profile_url': href('user', 'profile', f'&for={user.get_name_sid()}'),
+                    'avatar': self.avatar_href(user),
                     'lat': float(position.gdo_val('up_pos_lat')),
                     'lng': float(position.gdo_val('up_pos_lng')),
                 })
         return users
 
+    @staticmethod
+    def avatar_href(user: GDO_User) -> str | None:
+        if not module_enabled('avatar'):
+            return None
+        from gdo.avatar.GDT_Avatar import GDT_Avatar
+        return GDT_Avatar('avatar').for_user(user).href_render()
+
     def gdo_init_sidebar(self, page: 'GDT_Page'):
         """
         Put the who is online into a page bar.
         """
-        cached = Cache.get('online_users', 'all')
-        panel = cached or GDT_OnlinePanel()
-        if not cached:
-            Cache.set('online_users', 'all', panel)
-        self.cfg_page_location().add_field(panel)
+        self.cfg_page_location().add_field(GDT_OnlinePanel())
         if module_enabled('maps'):
-            page._left_bar.add_field(GDT_Link().href(self.href('map')).text('mt_online_map'))
+            count = len(self.online_users())
+            page._left_bar.add_field(GDT_Link().href(self.href('map')).text('mt_online_map', (count,)))

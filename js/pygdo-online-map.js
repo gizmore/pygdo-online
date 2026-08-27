@@ -7,6 +7,11 @@ window.gdo.onlineUsersMap = {
         if (!element || !window.L) {
             return;
         }
+        // gdo_init may run again after an XHR update. Leaflet may bind a DOM
+        // container only once; a replaced container has no _leaflet_id.
+        if (element._leaflet_id) {
+            return;
+        }
 
         let users = [];
         try {
@@ -24,7 +29,21 @@ window.gdo.onlineUsersMap = {
         users.forEach((user) => {
             const point = [user.lat, user.lng];
             bounds.push(point);
-            L.marker(point).addTo(map).bindTooltip(user.name);
+            const profile = document.createElement('span');
+            if (user.avatar) {
+                const avatar = document.createElement('img');
+                avatar.src = user.avatar;
+                avatar.alt = '';
+                avatar.className = 'online-map-avatar';
+                profile.append(avatar);
+            }
+            const profileLink = document.createElement('a');
+            profileLink.href = user.profile_url;
+            profileLink.textContent = user.name;
+            profile.append(profileLink);
+            L.marker(point)
+                .addTo(map)
+                .bindPopup(profile);
         });
 
         if (bounds.length) {

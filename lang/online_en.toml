@@ -1,9 +1,10 @@
 module_online = "Online"
 
 online_users = "%s Users Online"
+online_bar_location = "Online-Liste-Poosition"
 
 ##############
 # Online Map #
 ##############
-mt_online_map = "Online Map"
+mt_online_map = "Online Map (%s)"
 md_online_map = "Show the current online users with a map position."
