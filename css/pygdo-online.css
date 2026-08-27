@@ -1,0 +1,5 @@
+#online-map {
+    width: 100%;
+    min-height: 360px;
+    height: min(75vh, 720px);
+}

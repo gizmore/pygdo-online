@@ -2,11 +2,14 @@ from gdo.base.Application import Application
 from gdo.base.Cache import Cache
 from gdo.base.GDO_Module import GDO_Module
 from gdo.base.GDT import GDT
+from gdo.base.Util import module_enabled
 from gdo.core.GDO_User import GDO_User
 from gdo.core.GDT_Container import GDT_Container
 from gdo.online.GDT_OnlinePanel import GDT_OnlinePanel
 from gdo.ui.GDT_Page import GDT_Page
 from gdo.ui.GDT_PageLocation import GDT_PageLocation
+from gdo.ui.GDT_Link import GDT_Link
+from gdo.user.module_user import module_user
 
 
 class module_online(GDO_Module):
@@ -32,6 +35,11 @@ class module_online(GDO_Module):
         Application.EVENTS.subscribe('user_setting_last_activity_changed', self.on_last_activity_changed)
         Application.EVENTS.subscribe('user_logout', self.on_user_logout)
 
+    def gdo_load_scripts(self, page: 'GDT_Page'):
+        if module_enabled('maps'):
+            self.add_js('js/pygdo-online-map.js')
+            self.add_css('css/pygdo-online.css')
+
     def on_last_activity_changed(self, user: GDO_User, val):
         self.on_clear_cache()
 
@@ -40,6 +48,25 @@ class module_online(GDO_Module):
 
     def on_clear_cache(self):
         Cache.remove('online_users')
+
+    def online_users_with_positions(self) -> list[dict]:
+        """Return the current online users that have a stored map position."""
+        from gdo.maps.GDO_UserPos import GDO_UserPos
+
+        cut = module_user.instance().get_activity_cut_date()
+        positions = {
+            position.gdo_val('up_user'): position
+            for position in GDO_UserPos.table().select().exec()
+        }
+        users = []
+        for user in GDO_User.table().with_settings_result([('last_activity', '>=', cut)]):
+            if position := positions.get(user.get_id()):
+                users.append({
+                    'name': user.get_name_sid(),
+                    'lat': float(position.gdo_val('up_pos_lat')),
+                    'lng': float(position.gdo_val('up_pos_lng')),
+                })
+        return users
 
     def gdo_init_sidebar(self, page: 'GDT_Page'):
         """
@@ -50,3 +77,5 @@ class module_online(GDO_Module):
         if not cached:
             Cache.set('online_users', 'all', panel)
         self.cfg_page_location().add_field(panel)
+        if module_enabled('maps'):
+            page._left_bar.add_field(GDT_Link().href(self.href('map')).text('mt_online_map'))
