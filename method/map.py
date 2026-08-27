@@ -8,7 +8,7 @@ class map(MethodPage):
     def gdo_connectors(self) -> str:
         return 'web'
 
-    def gdo_has_permission(self) -> bool:
+    def gdo_has_permission(self, user) -> bool:
         return module_enabled('maps')
 
     def gdo_page_vars(self) -> dict:
