@@ -173,4 +173,4 @@ class module_online(GDO_Module):
         self.cfg_page_location().add_field(GDT_OnlinePanel())
         if module_enabled('maps'):
             count = len(self.online_users())
-            page._left_bar.add_field(GDT_Link().href(self.href('map')).text('mt_online_map', (count,)))
+            page._left_bar.add_field(GDT_Link().icon('map').href(self.href('map')).text('mt_online_map', (count,)))
