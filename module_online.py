@@ -11,9 +11,15 @@ from gdo.ui.GDT_Page import GDT_Page
 from gdo.ui.GDT_PageLocation import GDT_PageLocation
 from gdo.ui.GDT_Link import GDT_Link
 from gdo.user.module_user import module_user
+from gdo.date.Time import Time
+
+from redis.exceptions import RedisError
 
 
 class module_online(GDO_Module):
+
+    REDIS_USERS = 'online:users'
+    REDIS_READY = 'online:users:ready'
 
     def __init__(self):
         super().__init__()
@@ -42,21 +48,97 @@ class module_online(GDO_Module):
             self.add_css('css/pygdo-online.css')
 
     def on_last_activity_changed(self, user: GDO_User, val):
-        self.on_clear_cache()
+        """Refresh a primary user's Redis presence entry.
+
+        ``last_activity`` is deliberately bucketed by module_user.  Using the
+        same timestamp as the sorted-set score preserves its online semantics
+        while avoiding a database scan for every rendered page.
+        """
+        if user.gdo_val('user_link') is None:
+            self.redis_set_online(user.get_id(), Time.get_time(val))
 
     async def on_user_logout(self, user: GDO_User):
-        Cache.remove('online_users')
+        if user.gdo_val('user_link') is None:
+            self.redis_remove_online(user.get_id())
 
     def on_clear_cache(self):
-        Cache.remove('online_users')
+        """Forget the presence index; the next read warms it from SQL."""
+        if redis := Cache.RCACHE:
+            try:
+                redis.delete(self.REDIS_USERS, self.REDIS_READY)
+            except RedisError:
+                pass
 
-    def online_users(self) -> list[GDO_User]:
-        """Return active primary accounts, not their linked connector identities."""
-        cut = module_user.instance().get_activity_cut_date()
+    @staticmethod
+    def redis_enabled() -> bool:
+        return Cache.RCACHE is not None
+
+    def redis_ready_ttl(self) -> int:
+        """Periodically re-warm after a Redis reset without per-request SQL."""
+        return max(60, int(module_user.instance().cfg_activity_accuracy()) * 2)
+
+    def redis_mark_ready(self):
+        if redis := Cache.RCACHE:
+            redis.set(self.REDIS_READY, b'1', ex=self.redis_ready_ttl())
+
+    def redis_set_online(self, user_id: str, score: float):
+        if redis := Cache.RCACHE:
+            try:
+                redis.zadd(self.REDIS_USERS, {str(user_id): score})
+                # A marker distinguishes an intentionally empty index from
+                # one that has not been warmed after Redis was cleared.
+                self.redis_mark_ready()
+            except RedisError:
+                pass
+
+    def redis_remove_online(self, user_id: str):
+        if redis := Cache.RCACHE:
+            try:
+                redis.zrem(self.REDIS_USERS, str(user_id))
+                self.redis_mark_ready()
+            except RedisError:
+                pass
+
+    def online_users_sql(self, cut: str) -> list[GDO_User]:
         return [
             user for user in GDO_User.table().with_settings_result([('last_activity', '>=', cut)])
             if user.gdo_val('user_link') is None
         ]
+
+    def online_users_redis(self, cut: str) -> list[GDO_User] | None:
+        """Read online primary account ids from Redis, or ``None`` on failure."""
+        redis = Cache.RCACHE
+        if redis is None:
+            return None
+        try:
+            if not redis.exists(self.REDIS_READY):
+                # Redis has just started or was cleared: use the durable
+                # setting once, then all later page requests are Redis-only.
+                users = self.online_users_sql(cut)
+                for user in users:
+                    self.redis_set_online(user.get_id(), Application.TIME)
+                self.redis_mark_ready()
+                return users
+
+            cut_score = Time.get_time(cut)
+            redis.zremrangebyscore(self.REDIS_USERS, '-inf', f'({cut_score}')
+            ids = redis.zrangebyscore(self.REDIS_USERS, cut_score, '+inf')
+            users = []
+            for user_id in ids:
+                if isinstance(user_id, bytes):
+                    user_id = user_id.decode()
+                if (user := GDO_User.table().get_by_aid(str(user_id))) and user.gdo_val('user_link') is None:
+                    users.append(user)
+            return users
+        except RedisError:
+            return None
+
+    def online_users(self) -> list[GDO_User]:
+        """Return active primary accounts, not their linked connector identities."""
+        cut = module_user.instance().get_activity_cut_date()
+        if self.redis_enabled() and (users := self.online_users_redis(cut)) is not None:
+            return users
+        return self.online_users_sql(cut)
 
     def online_users_with_positions(self) -> list[dict]:
         """Return the current online users that have a stored map position."""
