@@ -11,6 +11,9 @@
 }
 
 .online-user-popup {
+	position: fixed;
+	inset: 0;
+	margin: auto;
 	width: min(90vw, 70rem);
 	height: min(90vh, 50rem);
 	border: 0;
