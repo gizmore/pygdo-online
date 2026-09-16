@@ -1,7 +1,6 @@
 window.gdo = window.gdo || {};
 window.gdo.online = {
     openUsers: function(url) {
-        debugger;
         const popup = document.getElementById('online-user-popup') || document.body.appendChild(document.createElement('dialog'));
         popup.id = 'online-user-popup';
         popup.className = 'online-user-popup';
