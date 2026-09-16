@@ -66,6 +66,8 @@ class OnlineUsersTest(GDOTestCase):
         web_plug('core.welcome.html').user('gizmore').exec()
         out = web_plug('core.welcome.html').user('gizmore').exec()
         self.assertIn('Users Online', out, 'Online users broken')
+        self.assertIn('online-user-grid', web_plug('online.online.html').exec())
+        self.assertIn('"data"', web_plug('online.users.json').exec())
 
     def test_02_redis_presence_warms_once_then_avoids_sql(self):
         web_plug('core.welcome.html').user('gizmore').exec()

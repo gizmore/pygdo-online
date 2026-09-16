@@ -5,10 +5,8 @@ from gdo.base.GDT import GDT
 from gdo.base.Util import module_enabled
 from gdo.base.util.href import href
 from gdo.core.GDO_User import GDO_User
-from gdo.core.GDT_Container import GDT_Container
-from gdo.online.GDT_OnlinePanel import GDT_OnlinePanel
+from gdo.core.GDT_Bool import GDT_Bool
 from gdo.ui.GDT_Page import GDT_Page
-from gdo.ui.GDT_PageLocation import GDT_PageLocation
 from gdo.ui.GDT_Link import GDT_Link
 from gdo.user.module_user import module_user
 from gdo.date.Time import Time
@@ -30,22 +28,28 @@ class module_online(GDO_Module):
             'maps',
         ]
 
-    def gdo_module_config(self) -> list[GDT]:
+    def gdo_dependencies(self) -> list:
         return [
-            GDT_PageLocation('online_bar_location').not_null().initial('_bottom_bar'),
+            'user',
         ]
 
-    def cfg_page_location(self) -> GDT_Container:
-        return self.get_config_value('online_bar_location')
+    def gdo_module_config(self) -> list[GDT]:
+        return [
+            GDT_Bool('show_userlist').not_null().initial('1'),
+        ]
+
+    def cfg_show_userlist(self) -> bool:
+        return self.get_config_value('show_userlist')
 
     def gdo_init(self):
         Application.EVENTS.subscribe('user_setting_last_activity_changed', self.on_last_activity_changed)
         Application.EVENTS.subscribe('user_logout', self.on_user_logout)
 
     def gdo_load_scripts(self, page: 'GDT_Page'):
+        self.add_js('js/pygdo-online.js')
+        self.add_css('css/pygdo-online.css')
         if module_enabled('maps'):
             self.add_js('js/pygdo-online-map.js')
-            self.add_css('css/pygdo-online.css')
 
     def on_last_activity_changed(self, user: GDO_User, val):
         """Refresh a primary user's Redis presence entry.
@@ -170,7 +174,13 @@ class module_online(GDO_Module):
         """
         Put the who is online into a page bar.
         """
-        self.cfg_page_location().add_field(GDT_OnlinePanel())
-        if module_enabled('maps'):
+        if self.cfg_show_userlist():
             count = len(self.online_users())
+            page._left_bar.add_field(
+                GDT_Link().href(self.href('users', format='json')).text('online_users', (count,)).icon('users').attr(
+                    'onclick', 'return gdo.online.openUsers(this.href);'
+                )
+            )
+        if module_enabled('maps'):
+            count = len(self.online_users_with_positions())
             page._left_bar.add_field(GDT_Link().icon('map').href(self.href('map')).text('mt_online_map', (count,)))
