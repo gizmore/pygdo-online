@@ -181,6 +181,6 @@ class module_online(GDO_Module):
                     'onclick', 'return gdo.online.openUsers(this.href);'
                 )
             )
+        count = len(self.online_users())
         if module_enabled('maps'):
-            count = len(self.online_users_with_positions())
             page._left_bar.add_field(GDT_Link().icon('map').href(self.href('map')).text('mt_online_map', (count,)))
