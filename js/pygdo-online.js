@@ -15,4 +15,31 @@ window.gdo.online = {
         });
         return false;
     },
+    refreshCount: async function() {
+        const link = document.querySelector('[data-online-counter]');
+        if (!link) return;
+        try {
+            const response = await fetch(link.href, {cache: 'no-store'});
+            if (!response.ok) return;
+            const payload = await response.json();
+            if (!Array.isArray(payload.data)) return;
+            const previous = link.dataset.onlineCounter;
+            const walker = document.createTreeWalker(link, NodeFilter.SHOW_TEXT);
+            while (walker.nextNode()) {
+                const node = walker.currentNode;
+                if (node.nodeValue.includes(previous)) {
+                    node.nodeValue = node.nodeValue.replace(previous, String(payload.data.length));
+                    link.dataset.onlineCounter = String(payload.data.length);
+                    break;
+                }
+            }
+        } catch (_) {
+            // Keep the last known count on temporary network failures.
+        }
+    },
 };
+document.addEventListener('DOMContentLoaded', () => {
+    if (document.querySelector('[data-online-counter]')) {
+        window.setInterval(() => window.gdo.online.refreshCount(), 60000);
+    }
+});

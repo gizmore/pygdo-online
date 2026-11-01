@@ -8,5 +8,5 @@ md_online_online = "Currently connected users."
 ##############
 # Online Map #
 ##############
-mt_online_map = "Online Map (%s)"
+mt_online_map = "Online Map"
 md_online_map = "Show the current online users with a map position."

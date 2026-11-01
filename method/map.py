@@ -14,7 +14,7 @@ class map(MethodPage):
         return module_enabled('maps')
 
     def gdo_render_title(self) -> str:
-        return t('mt_online_map', (len(module_online.instance().online_users()),))
+        return t('mt_online_map')
 
     def gdo_page_vars(self) -> dict:
         users = module_online.instance().online_users_with_positions()

@@ -177,10 +177,9 @@ class module_online(GDO_Module):
         if self.cfg_show_userlist():
             count = len(self.online_users())
             page._left_bar.add_field(
-                GDT_Link().href(self.href('users', format='json')).text('online_users', (count,)).icon('users').attr(
+                GDT_Link().href(self.href('users', format='json')).text('online_users', (count,)).icon('users').attr('data-online-counter', str(count)).attr(
                     'onclick', 'return gdo.online.openUsers(this.href);'
                 )
             )
-        count = len(self.online_users())
         if module_enabled('maps'):
-            page._left_bar.add_field(GDT_Link().icon('map').href(self.href('map')).text('mt_online_map', (count,)))
+            page._left_bar.add_field(GDT_Link().icon('map').href(self.href('map')).text('mt_online_map'))
