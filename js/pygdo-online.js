@@ -19,17 +19,22 @@ window.gdo.online = {
         const link = document.querySelector('[data-online-counter]');
         if (!link) return;
         try {
-            const response = await fetch(link.href, {cache: 'no-store'});
+            const response = await fetch(link.dataset.onlineCountUrl, {cache: 'no-store'});
             if (!response.ok) return;
             const payload = await response.json();
-            if (!Array.isArray(payload.data)) return;
+            if (!payload.data || !Number.isInteger(payload.data.users)) return;
             const previous = link.dataset.onlineCounter;
+            const previousGuests = link.dataset.onlineGuests;
+            const guests = payload.data.guests === null ? '?' : String(payload.data.guests);
+            const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const counts = new RegExp('(' + escape(previous) + ')(\\s*\\(\\+)' + escape(previousGuests) + '(\\))');
             const walker = document.createTreeWalker(link, NodeFilter.SHOW_TEXT);
             while (walker.nextNode()) {
                 const node = walker.currentNode;
-                if (node.nodeValue.includes(previous)) {
-                    node.nodeValue = node.nodeValue.replace(previous, String(payload.data.length));
-                    link.dataset.onlineCounter = String(payload.data.length);
+                if (counts.test(node.nodeValue)) {
+                    node.nodeValue = node.nodeValue.replace(counts, (_, first, between, close) => String(payload.data.users) + between + guests + close);
+                    link.dataset.onlineCounter = String(payload.data.users);
+                    link.dataset.onlineGuests = guests;
                     break;
                 }
             }

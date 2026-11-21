@@ -18,6 +18,7 @@ class module_online(GDO_Module):
 
     REDIS_USERS = 'online:users'
     REDIS_READY = 'online:users:ready'
+    REDIS_GUESTS = 'online:guests'
 
     def __init__(self):
         super().__init__()
@@ -44,6 +45,39 @@ class module_online(GDO_Module):
     def gdo_init(self):
         Application.EVENTS.subscribe('user_setting_last_activity_changed', self.on_last_activity_changed)
         Application.EVENTS.subscribe('user_logout', self.on_user_logout)
+        Application.EVENTS.subscribe('user_request', self.on_http_request)
+
+    def on_http_request(self, user: GDO_User):
+        """Track only existing HTTP sessions whose cookie was returned."""
+        from gdo.core.GDO_Session import GDO_Session
+        if not Application.has_session():
+            return
+        session = Application.get_session()
+        if not session or not session.is_persisted():
+            return
+        cookie = Application.get_cookie(Application.config('sess.name', GDO_Session.COOKIE_NAME) or GDO_Session.COOKIE_NAME)
+        if cookie not in (GDO_Session.DEFAULT_COOKIE, session.cookie_value()):
+            return
+        if redis := Cache.RCACHE:
+            try:
+                if user.is_ghost():
+                    redis.zadd(self.REDIS_GUESTS, {str(session.get_id()): Application.TIME})
+                    redis.expire(self.REDIS_GUESTS, max(60, int(module_user.instance().cfg_activity_accuracy()) * 2))
+                else:
+                    redis.zrem(self.REDIS_GUESTS, str(session.get_id()))
+            except RedisError:
+                pass
+
+    def online_guest_count(self) -> int | None:
+        redis = Cache.RCACHE
+        if redis is None:
+            return None
+        try:
+            cut = Time.get_time(module_user.instance().get_activity_cut_date())
+            redis.zremrangebyscore(self.REDIS_GUESTS, '-inf', f'({cut}')
+            return len(redis.zrangebyscore(self.REDIS_GUESTS, cut, '+inf'))
+        except RedisError:
+            return None
 
     def gdo_load_scripts(self, page: 'GDT_Page'):
         self.add_js('js/pygdo-online.js')
@@ -69,7 +103,7 @@ class module_online(GDO_Module):
         """Forget the presence index; the next read warms it from SQL."""
         if redis := Cache.RCACHE:
             try:
-                redis.delete(self.REDIS_USERS, self.REDIS_READY)
+                redis.delete(self.REDIS_USERS, self.REDIS_READY, self.REDIS_GUESTS)
             except RedisError:
                 pass
 
@@ -176,8 +210,9 @@ class module_online(GDO_Module):
         """
         if self.cfg_show_userlist():
             count = len(self.online_users())
+            guests = self.online_guest_count()
             page._left_bar.add_field(
-                GDT_Link().href(self.href('users', format='json')).text('online_users', (count,)).icon('users').attr('data-online-counter', str(count)).attr(
+                GDT_Link().href(self.href('users', format='json')).text('online_users_and_guests', (count, guests if guests is not None else '?')).icon('users').attr('data-online-counter', str(count)).attr('data-online-guests', str(guests) if guests is not None else '?').attr('data-online-count-url', self.href('count', format='json')).attr(
                     'onclick', 'return gdo.online.openUsers(this.href);'
                 )
             )
