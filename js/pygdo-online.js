@@ -44,7 +44,11 @@ window.gdo.online = {
     },
 };
 document.addEventListener('DOMContentLoaded', () => {
-    if (document.querySelector('[data-online-counter]')) {
-        window.setInterval(() => window.gdo.online.refreshCount(), 15000);
+    const link = document.querySelector('[data-online-counter]');
+    if (link) {
+        const interval = Number(link.dataset.onlineRefreshMs);
+        if (Number.isFinite(interval) && interval >= 1000) {
+            window.setInterval(() => window.gdo.online.refreshCount(), interval);
+        }
     }
 });
