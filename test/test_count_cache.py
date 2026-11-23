@@ -11,15 +11,32 @@ class OnlineCountCacheTest(unittest.TestCase):
     def test_intervals_are_duration_settings_with_expected_defaults(self):
         with patch('gdo.base.Application.Application.get_mode', return_value=None):
             fields = {field.get_name(): field for field in module_online().gdo_module_config()}
-        for name, default in (('online_refresh_interval', '11s'), ('online_count_cache_duration', '10s')):
+        for name, default in (('online_refresh_interval', '20s'), ('online_count_cache_duration', '4s 777ms')):
             self.assertIsInstance(fields[name], GDT_Duration)
             self.assertEqual(default, fields[name].get_initial())
+        with patch('gdo.base.Application.Application.get_mode', return_value=None):
+            user_setting = module_online().gdo_user_settings()[0]
+        self.assertIsInstance(user_setting, GDT_Duration)
+        self.assertEqual('10s', user_setting.get_initial())
+
+    def test_guest_and_member_refresh_intervals(self):
+        user = MagicMock()
+        user.is_ghost.return_value = True
+        self.online.get_config_value.return_value = 20
+        self.assertEqual(20, self.online.refresh_interval(user))
+        user.is_ghost.return_value = False
+        user.is_type.return_value = True
+        self.assertEqual(20, self.online.refresh_interval(user))
+        user.is_type.return_value = False
+        user.get_setting_value.return_value = 5
+        self.assertEqual(5, self.online.refresh_interval(user))
+        user.get_setting_value.assert_called_once_with('online_user_refresh_interval')
 
     def setUp(self):
         self.online = module_online()
         self.online.online_users = MagicMock(return_value=[1, 2])
         self.online.online_guest_count = MagicMock(return_value=1)
-        self.online.get_config_value = MagicMock(return_value=10)
+        self.online.get_config_value = MagicMock(return_value=4.777)
 
     def test_cache_hit_avoids_recount(self):
         redis = MagicMock()
@@ -34,7 +51,7 @@ class OnlineCountCacheTest(unittest.TestCase):
         redis.get.return_value = None
         with patch.object(Cache, 'RCACHE', redis):
             self.assertEqual({'users': 2, 'guests': 1}, self.online.online_counts())
-        redis.set.assert_called_once_with(self.online.REDIS_COUNT, '{"users": 2, "guests": 1}', ex=10)
+        redis.set.assert_called_once_with(self.online.REDIS_COUNT, '{"users": 2, "guests": 1}', px=4777)
 
     def test_configured_cache_duration_is_used(self):
         redis = MagicMock()
@@ -42,7 +59,7 @@ class OnlineCountCacheTest(unittest.TestCase):
         self.online.get_config_value.return_value = 27
         with patch.object(Cache, 'RCACHE', redis):
             self.online.online_counts()
-        self.assertEqual(27, redis.set.call_args.kwargs['ex'])
+        self.assertEqual(27000, redis.set.call_args.kwargs['px'])
 
     def test_redis_failure_falls_back_to_count(self):
         redis = MagicMock()

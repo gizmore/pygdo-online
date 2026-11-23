@@ -41,12 +41,20 @@ class module_online(GDO_Module):
     def gdo_module_config(self) -> list[GDT]:
         return [
             GDT_Bool('show_userlist').not_null().initial('1'),
-            GDT_Duration('online_refresh_interval').not_null().min(1).initial('11s'),
-            GDT_Duration('online_count_cache_duration').not_null().min(1).initial('10s'),
+            GDT_Duration('online_refresh_interval').not_null().min(1).initial('20s'),
+            GDT_Duration('online_count_cache_duration').not_null().min(1).units(2, True).initial('4s 777ms'),
         ]
 
     def cfg_show_userlist(self) -> bool:
         return self.get_config_value('show_userlist')
+
+    def gdo_user_settings(self) -> list[GDT]:
+        return [GDT_Duration('online_user_refresh_interval').not_null().min(5).initial('10s')]
+
+    def refresh_interval(self, user: GDO_User) -> float:
+        if user.is_ghost() or user.is_type('guest'):
+            return self.get_config_value('online_refresh_interval')
+        return user.get_setting_value('online_user_refresh_interval')
 
     def gdo_init(self):
         Application.EVENTS.subscribe('user_setting_last_activity_changed', self.on_last_activity_changed)
@@ -102,7 +110,7 @@ class module_online(GDO_Module):
         counts = {'users': len(self.online_users()), 'guests': self.online_guest_count()}
         if redis is not None:
             try:
-                redis.set(self.REDIS_COUNT, json.dumps(counts), ex=max(1, int(self.get_config_value('online_count_cache_duration'))))
+                redis.set(self.REDIS_COUNT, json.dumps(counts), px=max(1, round(self.get_config_value('online_count_cache_duration') * 1000)))
             except RedisError:
                 pass
         return counts
@@ -240,7 +248,7 @@ class module_online(GDO_Module):
             counts = self.online_counts()
             count, guests = counts['users'], counts['guests']
             page._left_bar.add_field(
-                GDT_Link().href(self.href('users', format='json')).text('online_users_and_guests', (count, guests if guests is not None else '?')).icon('users').attr('data-online-counter', str(count)).attr('data-online-guests', str(guests) if guests is not None else '?').attr('data-online-count-url', self.href('count', format='json')).attr('data-online-refresh-ms', str(max(1000, int(self.get_config_value('online_refresh_interval') * 1000)))).attr(
+                GDT_Link().href(self.href('users', format='json')).text('online_users_and_guests', (count, guests if guests is not None else '?')).icon('users').attr('data-online-counter', str(count)).attr('data-online-guests', str(guests) if guests is not None else '?').attr('data-online-count-url', self.href('count', format='json')).attr('data-online-refresh-ms', str(max(1000, int(self.refresh_interval(GDO_User.current()) * 1000)))).attr(
                     'onclick', 'return gdo.online.openUsers(this.href);'
                 )
             )
