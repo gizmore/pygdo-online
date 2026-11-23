@@ -1,3 +1,5 @@
+import json
+
 from gdo.base.Application import Application
 from gdo.base.Cache import Cache
 from gdo.base.GDO_Module import GDO_Module
@@ -19,6 +21,8 @@ class module_online(GDO_Module):
     REDIS_USERS = 'online:users'
     REDIS_READY = 'online:users:ready'
     REDIS_GUESTS = 'online:guests'
+    REDIS_COUNT = 'online:counts:v1'
+    COUNT_CACHE_SECONDS = 10
 
     def __init__(self):
         super().__init__()
@@ -79,6 +83,28 @@ class module_online(GDO_Module):
         except RedisError:
             return None
 
+    def online_counts(self) -> dict:
+        """Share a short-lived count across web workers; Redis is optional."""
+        redis = Cache.RCACHE
+        if redis is not None:
+            try:
+                cached = redis.get(self.REDIS_COUNT)
+                if cached:
+                    data = json.loads(cached)
+                    if (isinstance(data, dict) and type(data.get('users')) is int and
+                            (data.get('guests') is None or type(data.get('guests')) is int) and
+                            'guests' in data):
+                        return data
+            except (RedisError, ValueError, TypeError, UnicodeDecodeError):
+                pass
+        counts = {'users': len(self.online_users()), 'guests': self.online_guest_count()}
+        if redis is not None:
+            try:
+                redis.set(self.REDIS_COUNT, json.dumps(counts), ex=self.COUNT_CACHE_SECONDS)
+            except RedisError:
+                pass
+        return counts
+
     def gdo_load_scripts(self, page: 'GDT_Page'):
         self.add_js('js/pygdo-online.js')
         self.add_css('css/pygdo-online.css')
@@ -103,7 +129,7 @@ class module_online(GDO_Module):
         """Forget the presence index; the next read warms it from SQL."""
         if redis := Cache.RCACHE:
             try:
-                redis.delete(self.REDIS_USERS, self.REDIS_READY, self.REDIS_GUESTS)
+                redis.delete(self.REDIS_USERS, self.REDIS_READY, self.REDIS_GUESTS, self.REDIS_COUNT)
             except RedisError:
                 pass
 
@@ -209,8 +235,8 @@ class module_online(GDO_Module):
         Put the who is online into a page bar.
         """
         if self.cfg_show_userlist():
-            count = len(self.online_users())
-            guests = self.online_guest_count()
+            counts = self.online_counts()
+            count, guests = counts['users'], counts['guests']
             page._left_bar.add_field(
                 GDT_Link().href(self.href('users', format='json')).text('online_users_and_guests', (count, guests if guests is not None else '?')).icon('users').attr('data-online-counter', str(count)).attr('data-online-guests', str(guests) if guests is not None else '?').attr('data-online-count-url', self.href('count', format='json')).attr(
                     'onclick', 'return gdo.online.openUsers(this.href);'

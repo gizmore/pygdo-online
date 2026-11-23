@@ -45,6 +45,6 @@ window.gdo.online = {
 };
 document.addEventListener('DOMContentLoaded', () => {
     if (document.querySelector('[data-online-counter]')) {
-        window.setInterval(() => window.gdo.online.refreshCount(), 60000);
+        window.setInterval(() => window.gdo.online.refreshCount(), 15000);
     }
 });
