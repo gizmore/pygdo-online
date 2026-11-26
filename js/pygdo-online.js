@@ -35,7 +35,7 @@ window.gdo.online = {
                 const node = walker.currentNode;
                 if (counts.test(node.nodeValue)) {
                     node.nodeValue = node.nodeValue.replace(counts, (_, first, between, close) => String(payload.data.users) + between + guests + close);
-                    node.nodeValue = node.nodeValue.replace(new RegExp('(·\\s*)' + escape(previousViewers) + '(\\s+watching)'), (_, prefix, suffix) => prefix + viewers + suffix);
+                    node.nodeValue = node.nodeValue.replace(new RegExp('(\\()' + escape(previousViewers) + '(\\s+watch\\))'), (_, prefix, suffix) => prefix + viewers + suffix);
                     link.dataset.onlineCounter = String(payload.data.users);
                     link.dataset.onlineGuests = guests;
                     link.dataset.onlineViewers = viewers;
