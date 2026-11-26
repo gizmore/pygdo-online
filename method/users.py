@@ -7,6 +7,9 @@ from gdo.user.GDT_ProfileLink import GDT_ProfileLink
 class users(Method):
     """The current online roster for the website overlay."""
 
+    def gdo_method_hidden(self) -> bool:
+        return True
+
     def gdo_execute(self) -> GDT:
         rows = GDT_List()
         for user in self.gdo_module().online_users():

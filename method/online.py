@@ -7,6 +7,9 @@ from gdo.user.GDT_ProfileLink import GDT_ProfileLink
 
 class online(Method):
 
+    def gdo_method_hidden(self) -> bool:
+        return True
+
     def gdo_execute(self) -> GDT:
         grid = GDT_Container().attr('class', 'online-user-grid')
         with_avatar = module_enabled('avatar')
