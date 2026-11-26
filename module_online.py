@@ -23,6 +23,7 @@ class module_online(GDO_Module):
     REDIS_READY = 'online:users:ready'
     REDIS_GUESTS = 'online:guests'
     REDIS_COUNT = 'online:counts:v1'
+    REDIS_STREAM_VIEWERS = 'video:stream:viewers:v1'
 
     def __init__(self):
         super().__init__()
@@ -103,17 +104,33 @@ class module_online(GDO_Module):
                     data = json.loads(cached)
                     if (isinstance(data, dict) and type(data.get('users')) is int and
                             (data.get('guests') is None or type(data.get('guests')) is int) and
-                            'guests' in data):
+                            'guests' in data and 'stream_viewers' in data and
+                            (data['stream_viewers'] is None or
+                             (type(data['stream_viewers']) is int and 0 <= data['stream_viewers'] <= 16))):
                         return data
             except (RedisError, ValueError, TypeError, UnicodeDecodeError):
                 pass
-        counts = {'users': len(self.online_users()), 'guests': self.online_guest_count()}
+        counts = {'users': len(self.online_users()), 'guests': self.online_guest_count(),
+                  'stream_viewers': self.stream_viewer_count()}
         if redis is not None:
             try:
                 redis.set(self.REDIS_COUNT, json.dumps(counts), px=max(1, round(self.get_config_value('online_count_cache_duration') * 1000)))
             except RedisError:
                 pass
         return counts
+
+    def stream_viewer_count(self) -> int | None:
+        """Read Dog's expiring, anonymous web-player count; absent is unknown."""
+        if Cache.RCACHE is None:
+            return None
+        try:
+            value = Cache.RCACHE.get(self.REDIS_STREAM_VIEWERS)
+            if value is None:
+                return None
+            count = int(value)
+            return count if 0 <= count <= 16 else None
+        except (RedisError, ValueError, TypeError, UnicodeDecodeError):
+            return None
 
     def gdo_load_scripts(self, page: 'GDT_Page'):
         self.add_js('js/pygdo-online.js')
@@ -246,9 +263,9 @@ class module_online(GDO_Module):
         """
         if self.cfg_show_userlist():
             counts = self.online_counts()
-            count, guests = counts['users'], counts['guests']
+            count, guests, viewers = counts['users'], counts['guests'], counts['stream_viewers']
             page._left_bar.add_field(
-                GDT_Link().href(self.href('users', format='json')).text('online_users_and_guests', (count, guests if guests is not None else '?')).icon('users').attr('data-online-counter', str(count)).attr('data-online-guests', str(guests) if guests is not None else '?').attr('data-online-count-url', self.href('count', format='json')).attr('data-online-refresh-ms', str(max(1000, int(self.refresh_interval(GDO_User.current()) * 1000)))).attr(
+                GDT_Link().href(self.href('users', format='json')).text('online_users_guests_viewers', (count, guests if guests is not None else '?', viewers if viewers is not None else '?')).icon('users').attr('data-online-counter', str(count)).attr('data-online-guests', str(guests) if guests is not None else '?').attr('data-online-viewers', str(viewers) if viewers is not None else '?').attr('data-online-count-url', self.href('count', format='json')).attr('data-online-refresh-ms', str(max(1000, int(self.refresh_interval(GDO_User.current()) * 1000)))).attr(
                     'onclick', 'return gdo.online.openUsers(this.href);'
                 )
             )

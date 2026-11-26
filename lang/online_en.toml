@@ -2,6 +2,7 @@ module_online = "Online"
 
 online_users = "%s Users Online"
 online_users_and_guests = "%s(+%s) Users are online"
+online_users_guests_viewers = "%s(+%s) Users are online · %s watching"
 show_userlist = "Show online user list"
 online_refresh_interval = "Guest online count refresh interval"
 online_user_refresh_interval = "Online count refresh interval"

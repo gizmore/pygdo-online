@@ -25,7 +25,9 @@ window.gdo.online = {
             if (!payload.data || !Number.isInteger(payload.data.users)) return;
             const previous = link.dataset.onlineCounter;
             const previousGuests = link.dataset.onlineGuests;
+            const previousViewers = link.dataset.onlineViewers;
             const guests = payload.data.guests === null ? '?' : String(payload.data.guests);
+            const viewers = Number.isInteger(payload.data.stream_viewers) ? String(payload.data.stream_viewers) : '?';
             const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const counts = new RegExp('(' + escape(previous) + ')(\\s*\\(\\+)' + escape(previousGuests) + '(\\))');
             const walker = document.createTreeWalker(link, NodeFilter.SHOW_TEXT);
@@ -33,8 +35,10 @@ window.gdo.online = {
                 const node = walker.currentNode;
                 if (counts.test(node.nodeValue)) {
                     node.nodeValue = node.nodeValue.replace(counts, (_, first, between, close) => String(payload.data.users) + between + guests + close);
+                    node.nodeValue = node.nodeValue.replace(new RegExp('(·\\s*)' + escape(previousViewers) + '(\\s+watching)'), (_, prefix, suffix) => prefix + viewers + suffix);
                     link.dataset.onlineCounter = String(payload.data.users);
                     link.dataset.onlineGuests = guests;
+                    link.dataset.onlineViewers = viewers;
                     break;
                 }
             }

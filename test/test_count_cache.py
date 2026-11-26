@@ -40,9 +40,9 @@ class OnlineCountCacheTest(unittest.TestCase):
 
     def test_cache_hit_avoids_recount(self):
         redis = MagicMock()
-        redis.get.return_value = b'{"users": 4, "guests": 2}'
+        redis.get.return_value = b'{"users": 4, "guests": 2, "stream_viewers": 3}'
         with patch.object(Cache, 'RCACHE', redis):
-            self.assertEqual({'users': 4, 'guests': 2}, self.online.online_counts())
+            self.assertEqual({'users': 4, 'guests': 2, 'stream_viewers': 3}, self.online.online_counts())
         self.online.online_users.assert_not_called()
         self.online.online_guest_count.assert_not_called()
 
@@ -50,8 +50,8 @@ class OnlineCountCacheTest(unittest.TestCase):
         redis = MagicMock()
         redis.get.return_value = None
         with patch.object(Cache, 'RCACHE', redis):
-            self.assertEqual({'users': 2, 'guests': 1}, self.online.online_counts())
-        redis.set.assert_called_once_with(self.online.REDIS_COUNT, '{"users": 2, "guests": 1}', px=4777)
+            self.assertEqual({'users': 2, 'guests': 1, 'stream_viewers': None}, self.online.online_counts())
+        redis.set.assert_called_once_with(self.online.REDIS_COUNT, '{"users": 2, "guests": 1, "stream_viewers": null}', px=4777)
 
     def test_configured_cache_duration_is_used(self):
         redis = MagicMock()
@@ -66,9 +66,16 @@ class OnlineCountCacheTest(unittest.TestCase):
         redis.get.side_effect = RedisError('unavailable')
         redis.set.side_effect = RedisError('unavailable')
         with patch.object(Cache, 'RCACHE', redis):
-            self.assertEqual({'users': 2, 'guests': 1}, self.online.online_counts())
+            self.assertEqual({'users': 2, 'guests': 1, 'stream_viewers': None}, self.online.online_counts())
 
     def test_no_redis_keeps_unknown_guest_count(self):
         self.online.online_guest_count.return_value = None
         with patch.object(Cache, 'RCACHE', None):
-            self.assertEqual({'users': 2, 'guests': None}, self.online.online_counts())
+            self.assertEqual({'users': 2, 'guests': None, 'stream_viewers': None}, self.online.online_counts())
+
+    def test_viewer_count_read_and_invalid_or_expired(self):
+        redis = MagicMock()
+        with patch.object(Cache, 'RCACHE', redis):
+            for raw, expected in ((b'3', 3), (b'0', 0), (None, None), (b'17', None), (b'no', None)):
+                redis.get.return_value = raw
+                self.assertEqual(expected, self.online.stream_viewer_count())
