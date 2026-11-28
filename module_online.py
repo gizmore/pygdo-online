@@ -59,6 +59,7 @@ class module_online(GDO_Module):
 
     def gdo_init(self):
         Application.EVENTS.subscribe('user_setting_last_activity_changed', self.on_last_activity_changed)
+        Application.EVENTS.subscribe('user_presence_seen', self.on_presence_seen)
         Application.EVENTS.subscribe('user_logout', self.on_user_logout)
         Application.EVENTS.subscribe('user_request', self.on_http_request)
 
@@ -141,12 +142,14 @@ class module_online(GDO_Module):
     def on_last_activity_changed(self, user: GDO_User, val):
         """Refresh a primary user's Redis presence entry.
 
-        ``last_activity`` is deliberately bucketed by module_user.  Using the
-        same timestamp as the sorted-set score preserves its online semantics
-        while avoiding a database scan for every rendered page.
+        Persisted activity provides a fallback when Redis is unavailable.
         """
         if user.gdo_val('user_link') is None:
             self.redis_set_online(user.get_id(), Time.get_time(val))
+
+    def on_presence_seen(self, user: GDO_User, timestamp):
+        if user.gdo_val('user_link') is None:
+            self.redis_set_online(user.get_id(), timestamp)
 
     async def on_user_logout(self, user: GDO_User):
         if user.gdo_val('user_link') is None:
@@ -175,18 +178,16 @@ class module_online(GDO_Module):
     def redis_set_online(self, user_id: str, score: float):
         if redis := Cache.RCACHE:
             try:
-                redis.zadd(self.REDIS_USERS, {str(user_id): score})
-                # A marker distinguishes an intentionally empty index from
-                # one that has not been warmed after Redis was cleared.
-                self.redis_mark_ready()
+                redis.zadd(self.REDIS_USERS, {str(user_id): score}, gt=True)
+                return True
             except RedisError:
-                pass
+                return False
+        return False
 
     def redis_remove_online(self, user_id: str):
         if redis := Cache.RCACHE:
             try:
                 redis.zrem(self.REDIS_USERS, str(user_id))
-                self.redis_mark_ready()
             except RedisError:
                 pass
 
@@ -207,7 +208,8 @@ class module_online(GDO_Module):
                 # setting once, then all later page requests are Redis-only.
                 users = self.online_users_sql(cut)
                 for user in users:
-                    self.redis_set_online(user.get_id(), Application.TIME)
+                    if not self.redis_set_online(user.get_id(), Time.get_time(user.get_setting_val('last_activity'))):
+                        return None
                 self.redis_mark_ready()
                 return users
 

@@ -30,8 +30,11 @@ class FakeRedis:
             self.values.pop(key, None)
             self.zsets.pop(key, None)
 
-    def zadd(self, key, values):
-        self.zsets.setdefault(key, {}).update(values)
+    def zadd(self, key, values, gt=False):
+        entries = self.zsets.setdefault(key, {})
+        for member, score in values.items():
+            if not gt or member not in entries or score > entries[member]:
+                entries[member] = score
 
     def zrem(self, key, member):
         self.zsets.get(key, {}).pop(member, None)
